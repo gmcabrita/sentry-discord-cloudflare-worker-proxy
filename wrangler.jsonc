@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sentry-discord-proxy",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-13",
+  "upload_source_maps": true,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "sentry-discord-proxy.gmcabrita.com",
+      "custom_domain": true,
+    },
+  ],
+  "vars": {
+    "DISCORD_WEBHOOK_ROUTE_MAP": {
+      "run-gmc": "DISCORD_WEBHOOK_RUN_GMC",
+    },
+  },
+  "observability": {
+    "enabled": true,
+  },
+}
