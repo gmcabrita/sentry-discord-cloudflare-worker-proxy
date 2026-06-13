@@ -138,7 +138,7 @@ export function sentryToDiscord(payload: unknown, resourceHeader: string | null 
   const notification = extractSentryNotification(payload, resourceHeader);
   const embed: DiscordEmbed = {
     title: truncate(notification.title, 256),
-    color: SENTRY_EMBED_BLUE,
+    color: nativeColorFor(notification.level),
     fields: []
   };
   const description = buildNativeDescription(notification);
@@ -292,6 +292,20 @@ function extractSentryNotification(payload: unknown, resourceHeader: string | nu
       (primary ? getString(primary, "timestamp") : undefined) ??
       (event ? getString(event, "datetime") : undefined)
   };
+}
+
+function nativeColorFor(level: Severity): number {
+  switch (level) {
+    case "fatal":
+    case "error":
+      return 0xe74c3c;
+    case "warning":
+      return 0xf1c40f;
+    case "info":
+    case "debug":
+    case "unknown":
+      return SENTRY_EMBED_BLUE;
+  }
 }
 
 function buildNativeDescription(notification: SentryNotification): string | undefined {

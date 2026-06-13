@@ -29,6 +29,7 @@ describe("sentryToDiscord", () => {
     expect(discord.embeds[0]?.title).toBe("TypeError");
     expect(discord.embeds[0]?.description).toBe("failed to fetch\n\n**API-123 • <t:1781337600:f>**");
     expect(discord.embeds[0]?.url).toBe("https://example.sentry.io/issues/123/");
+    expect(discord.embeds[0]?.color).toBe(0xe74c3c);
     expect(discord.embeds[0]?.fields).toEqual([]);
   });
 
@@ -56,6 +57,7 @@ describe("sentryToDiscord", () => {
     expect(discord.embeds[0]?.description).toBe(
       "Cannot read properties of undefined\n\n**frontend via High error rate • <t:1781338500:f>**"
     );
+    expect(discord.embeds[0]?.color).toBe(0xf1c40f);
     expect(discord.embeds[0]?.fields).toEqual([]);
   });
 });
