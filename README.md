@@ -11,9 +11,9 @@ Discord channel → **Edit Channel** → **Integrations** → **Webhooks** → *
 ### 2. Cloudflare secrets
 
 ```sh
-npm install
-npx wrangler secret put DISCORD_WEBHOOK_RUN_GMC
-npx wrangler secret put SENTRY_WEBHOOK_SECRET
+pnpm install
+pnpm wrangler secret put DISCORD_WEBHOOK_RUN_GMC
+pnpm wrangler secret put SENTRY_WEBHOOK_SECRET
 ```
 
 Use the Discord webhook URL for `DISCORD_WEBHOOK_RUN_GMC`.
@@ -40,7 +40,7 @@ Add another route later by editing the non-secret map and adding only the new se
 ```
 
 ```sh
-npx wrangler secret put DISCORD_WEBHOOK_OTHER_PROJECT
+pnpm wrangler secret put DISCORD_WEBHOOK_OTHER_PROJECT
 ```
 
 Every Sentry project must have an explicit route.
@@ -50,8 +50,8 @@ Use the Sentry internal integration **Client Secret** for `SENTRY_WEBHOOK_SECRET
 ### 3. Deploy
 
 ```sh
-npx wrangler whoami
-npm run deploy
+pnpm wrangler whoami
+pnpm deploy
 ```
 
 Worker health check:
@@ -75,7 +75,7 @@ Then add the integration as an action in Sentry alert rules if using alert notif
 ## Local dev
 
 ```sh
-npm run dev
+pnpm dev
 ```
 
 Use a local test payload:
@@ -90,6 +90,7 @@ curl -X POST http://localhost:8787 \
 ## Test
 
 ```sh
-npm test
-npm run typecheck
+pnpm test
+pnpm typecheck
+pnpm cf-typegen
 ```
