@@ -62,6 +62,7 @@ type DiscordRouteMap =
     };
 
 const DISCORD_SUCCESS_STATUSES = new Set([200, 204]);
+const SENTRY_EMBED_BLUE = 0x3498db;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -135,31 +136,24 @@ export default {
 
 export function sentryToDiscord(payload: unknown, resourceHeader: string | null = null): DiscordWebhookPayload {
   const notification = extractSentryNotification(payload, resourceHeader);
-  const fields = buildFields(notification);
   const embed: DiscordEmbed = {
     title: truncate(notification.title, 256),
-    color: colorFor(notification.level, notification.action),
-    fields,
-    footer: {
-      text: "Sentry"
-    }
+    color: SENTRY_EMBED_BLUE,
+    fields: []
   };
+  const description = buildNativeDescription(notification);
 
-  if (notification.description) {
-    embed.description = truncate(notification.description, 4096);
+  if (description) {
+    embed.description = truncate(description, 4096);
   }
 
   if (notification.url) {
     embed.url = notification.url;
   }
 
-  if (notification.timestamp) {
-    embed.timestamp = notification.timestamp;
-  }
-
   return {
     username: "Sentry",
-    content: truncate(buildContent(notification), 2000),
+    content: "",
     embeds: [embed],
     allowed_mentions: {
       parse: []
@@ -238,16 +232,19 @@ function extractSentryNotification(payload: unknown, resourceHeader: string | nu
   const primary = issue ?? event ?? data ?? root;
   const action = root ? getString(root, "action") : undefined;
   const resource = resourceHeader ?? (root ? getString(root, "resource") : undefined);
-  const title =
+  const rawTitle =
     (primary ? getString(primary, "title") : undefined) ??
     (primary ? getString(primary, "message") : undefined) ??
     (primary ? getString(primary, "value") : undefined) ??
     (issue ? metadataValue(issue) : undefined) ??
     "Sentry notification";
+  const titleParts = splitSentryTitle(rawTitle);
+  const title = (issue ? metadataType(issue) : undefined) ?? titleParts.title;
   const description =
-    (primary ? getString(primary, "culprit") : undefined) ??
+    (issue ? metadataValue(issue) : undefined) ??
+    titleParts.description ??
     (event ? getString(event, "message") : undefined) ??
-    (issue ? metadataValue(issue) : undefined);
+    (primary ? getString(primary, "culprit") : undefined);
   const url = firstValidUrl([
     primary ? getString(primary, "permalink") : undefined,
     primary ? getString(primary, "web_url") : undefined,
@@ -297,80 +294,30 @@ function extractSentryNotification(payload: unknown, resourceHeader: string | nu
   };
 }
 
-function buildContent(notification: SentryNotification): string {
-  const emoji = emojiFor(notification.level, notification.action);
-  const action = notification.action ? ` ${notification.action}` : "";
-  const resource = notification.resource ? ` ${notification.resource}` : "";
-  const id = notification.shortId ? `${notification.shortId}: ` : "";
+function buildNativeDescription(notification: SentryNotification): string | undefined {
+  const context = buildNativeContext(notification);
 
-  return `${emoji} Sentry${resource}${action}: ${id}${notification.title}`;
+  if (notification.description && context) {
+    return `${notification.description}\n\n**${context}**`;
+  }
+
+  if (notification.description) {
+    return notification.description;
+  }
+
+  return context ? `**${context}**` : undefined;
 }
 
-function buildFields(notification: SentryNotification): DiscordField[] {
-  const fields: DiscordField[] = [];
+function buildNativeContext(notification: SentryNotification): string | undefined {
+  const timestamp = discordTimestamp(notification.timestamp);
+  const id = notification.shortId ?? notification.project;
+  const source = id && notification.rule ? `${id} via ${notification.rule}` : id;
 
-  addField(fields, "Project", notification.project, true);
-  addField(fields, "Environment", notification.environment, true);
-  addField(fields, "Level", notification.level === "unknown" ? undefined : notification.level, true);
-  addField(fields, "Status", notification.status, true);
-  addField(fields, "Rule", notification.rule, false);
-  addField(fields, "Culprit", notification.culprit, false);
-  addField(fields, "Events", notification.count, true);
-  addField(fields, "Users", notification.users, true);
-
-  return fields;
-}
-
-function addField(fields: DiscordField[], name: string, value: string | undefined, inline: boolean): void {
-  if (!value) {
-    return;
+  if (source && timestamp) {
+    return `${source} • ${timestamp}`;
   }
 
-  fields.push({
-    name: truncate(name, 256),
-    value: truncate(value, 1024),
-    inline
-  });
-}
-
-function colorFor(level: Severity, action: string | undefined): number {
-  if (action === "resolved") {
-    return 0x2f9e44;
-  }
-
-  switch (level) {
-    case "fatal":
-    case "error":
-      return 0xe03131;
-    case "warning":
-      return 0xf08c00;
-    case "info":
-      return 0x1971c2;
-    case "debug":
-      return 0x7048e8;
-    case "unknown":
-      return 0x868e96;
-  }
-}
-
-function emojiFor(level: Severity, action: string | undefined): string {
-  if (action === "resolved") {
-    return "✅";
-  }
-
-  switch (level) {
-    case "fatal":
-    case "error":
-      return "🚨";
-    case "warning":
-      return "⚠️";
-    case "info":
-      return "ℹ️";
-    case "debug":
-      return "🔎";
-    case "unknown":
-      return "📣";
-  }
+  return source ?? timestamp;
 }
 
 function parseSeverity(value: string | undefined): Severity {
@@ -462,6 +409,56 @@ function metadataValue(record: JsonRecord): string | undefined {
   }
 
   return getString(metadata, "value") ?? getString(metadata, "title") ?? getString(metadata, "type");
+}
+
+function metadataType(record: JsonRecord): string | undefined {
+  const metadata = getRecord(record, "metadata");
+
+  if (!metadata) {
+    return undefined;
+  }
+
+  return getString(metadata, "type") ?? getString(metadata, "title");
+}
+
+function splitSentryTitle(title: string): { title: string; description: string | undefined } {
+  const separatorIndex = title.indexOf(":");
+
+  if (separatorIndex <= 0) {
+    return {
+      title,
+      description: undefined
+    };
+  }
+
+  const prefix = title.slice(0, separatorIndex).trim();
+  const suffix = title.slice(separatorIndex + 1).trim();
+
+  if (!prefix || !suffix || prefix.length > 80) {
+    return {
+      title,
+      description: undefined
+    };
+  }
+
+  return {
+    title: prefix,
+    description: suffix
+  };
+}
+
+function discordTimestamp(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const milliseconds = Date.parse(value);
+
+  if (!Number.isFinite(milliseconds)) {
+    return value;
+  }
+
+  return `<t:${Math.floor(milliseconds / 1000)}:f>`;
 }
 
 function getTagValue(record: JsonRecord, key: string): string | undefined {

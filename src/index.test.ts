@@ -25,17 +25,11 @@ describe("sentryToDiscord", () => {
 
     const discord = sentryToDiscord(payload, "issue");
 
-    expect(discord.content).toContain("🚨 Sentry issue created: API-123");
-    expect(discord.embeds[0]?.title).toBe("TypeError: failed to fetch");
+    expect(discord.content).toBe("");
+    expect(discord.embeds[0]?.title).toBe("TypeError");
+    expect(discord.embeds[0]?.description).toBe("failed to fetch\n\n**API-123 • <t:1781337600:f>**");
     expect(discord.embeds[0]?.url).toBe("https://example.sentry.io/issues/123/");
-    expect(discord.embeds[0]?.fields).toEqual(
-      expect.arrayContaining([
-        { name: "Project", value: "api", inline: true },
-        { name: "Level", value: "error", inline: true },
-        { name: "Events", value: "42", inline: true },
-        { name: "Users", value: "7", inline: true }
-      ])
-    );
+    expect(discord.embeds[0]?.fields).toEqual([]);
   });
 
   it("maps event alert webhooks", () => {
@@ -57,14 +51,12 @@ describe("sentryToDiscord", () => {
 
     const discord = sentryToDiscord(payload, "event_alert");
 
-    expect(discord.content).toContain("⚠️ Sentry event_alert triggered");
-    expect(discord.embeds[0]?.fields).toEqual(
-      expect.arrayContaining([
-        { name: "Project", value: "frontend", inline: true },
-        { name: "Environment", value: "production", inline: true },
-        { name: "Rule", value: "High error rate", inline: false }
-      ])
+    expect(discord.content).toBe("");
+    expect(discord.embeds[0]?.title).toBe("Unhandled RuntimeError");
+    expect(discord.embeds[0]?.description).toBe(
+      "Cannot read properties of undefined\n\n**frontend via High error rate • <t:1781338500:f>**"
     );
+    expect(discord.embeds[0]?.fields).toEqual([]);
   });
 });
 
